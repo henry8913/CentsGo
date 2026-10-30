@@ -1,6 +1,7 @@
 # Miscellaneous
 *.class
 *.lock
+!pubspec.lock
 *.log
 *.pyc
 *.swp
@@ -31,6 +32,12 @@ analysis_benchmark.json
 # packages file containing multi-root paths
 .packages.generated
 
+# IntelliJ related
+*.iml
+*.ipr
+*.iws
+.idea/
+
 # Flutter/Dart/Pub related
 **/doc/api/
 .dart_tool/
@@ -41,6 +48,8 @@ analysis_benchmark.json
 .pub-preload-cache/
 .pub/
 build/
+# symlinked build directory (used when the repo lives in a synced folder)
+/build
 flutter_*.png
 linked_*.ds
 unlinked.ds
@@ -117,3 +126,12 @@ app.*.symbols
 !**/ios/**/default.perspectivev3
 !/packages/flutter_tools/test/data/dart_dependencies_test/**/.packages
 !/dev/ci/**/Gemfile.lock
+
+# OS generated files
+.DS_Store
+
+# Generated documentation
+/docs
+
+# Local tooling metadata
+.metadata

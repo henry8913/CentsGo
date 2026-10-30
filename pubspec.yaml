@@ -1,0 +1,77 @@
+name: centsgo
+description: "CentsGo - confronto prezzi carburante in Italia, multi-piattaforma (iOS, Android, macOS, Windows, Linux)."
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.13.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+  flutter_map: ^8.3.2
+  geolocator: ^14.1.2
+  intl: ^0.20.3
+  latlong2: ^0.10.1
+  path_provider: ^2.1.6
+  shared_preferences: ^2.5.6
+  url_launcher: ^6.3.3
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/data/stations.json
+    - assets/data/comuni.json
+    - assets/data/province.json
+    - assets/data/elettrico.json
+    - assets/data/ev_tariffe.json
+    - assets/data/ztl_dump.json
+    - assets/data/osm_pois_seed.json
+    - assets/data/auto_marche_modelli.json
+    - assets/data/moto_marche_modelli.json
+    - assets/branding/
+
+  fonts:
+    - family: Jakarta
+      fonts:
+        - asset: assets/fonts/PlusJakartaSans-400.ttf
+          weight: 400
+        - asset: assets/fonts/PlusJakartaSans-500.ttf
+          weight: 500
+        - asset: assets/fonts/PlusJakartaSans-600.ttf
+          weight: 600
+        - asset: assets/fonts/PlusJakartaSans-700.ttf
+          weight: 700
+        - asset: assets/fonts/PlusJakartaSans-800.ttf
+          weight: 800
+    - family: Display
+      fonts:
+        - asset: assets/fonts/ArchivoBlack-Regular.ttf
+    - family: Mono
+      fonts:
+        - asset: assets/fonts/IBMPlexMono-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/IBMPlexMono-SemiBold.ttf
+          weight: 600
+
+flutter_launcher_icons:
+  android: true
+  ios: true
+  image_path: assets/branding/icon.png
+  remove_alpha_ios: true
+  min_sdk_android: 21
+  adaptive_icon_background: "#C2410C"
+  adaptive_icon_foreground: assets/branding/icon_foreground.png
+  macos:
+    generate: true
+    image_path: assets/branding/icon_macos.png
+  windows:
+    generate: true
+    image_path: assets/branding/icon.png

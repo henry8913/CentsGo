@@ -1,0 +1,41 @@
+{
+  "_nota": "Tariffe a consumo (senza abbonamento) in €/kWh per classe di potenza: ac = sotto 50 kW, dc = 50-149 kW, hpc = 150 kW e oltre. null = non verificata: l'app usa la media di mercato. Aggiornare a mano una volta al mese; la stessa struttura si può mandare da /api/config sotto la chiave ev_tariffs per cambiarla senza release.",
+  "checked": "2026-10-05",
+  "market": {
+    "ac": 0.63, "dc": 0.75, "hpc": 0.76,
+    "source": "Adiconsum, Osservatorio tariffe di ricarica, marzo 2026",
+    "checked": "2026-04-14"
+  },
+  "operators": [
+    {
+      "name": "Enel X Way", "match": ["enel x", "enel x way"],
+      "ac": 0.67, "dc": 0.75, "hpc": 0.86,
+      "source": "elettricopertutti.it, tariffe settembre 2026", "checked": "2026-09-05"
+    },
+    {
+      "name": "A2A E-Moving", "match": ["a2a"],
+      "ac": 0.65, "dc": 0.72, "hpc": 0.90,
+      "source": "elettricopertutti.it, tariffe settembre 2026", "checked": "2026-09-05"
+    },
+    {
+      "name": "Ewiva", "match": ["ewiva"],
+      "ac": null, "dc": 0.80, "hpc": 0.80,
+      "source": "Ewiva, pagamento contactless 0,80 €/kWh", "checked": "2026-10-05"
+    },
+    {
+      "name": "Be Charge", "match": ["be charge", "plenitude"],
+      "ac": null, "dc": null, "hpc": null,
+      "source": "Promo 0,53/0,65 €/kWh scaduta il 30/09/2026: da verificare", "checked": null
+    },
+    {
+      "name": "Free To X", "match": ["free to x"],
+      "ac": null, "dc": null, "hpc": null,
+      "source": "Promo 0,50 €/kWh scaduta il 30/09/2026: da verificare", "checked": null
+    },
+    {
+      "name": "ASM Terni", "match": ["asm terni"],
+      "ac": null, "dc": null, "hpc": null,
+      "source": "da verificare", "checked": null
+    }
+  ]
+}
