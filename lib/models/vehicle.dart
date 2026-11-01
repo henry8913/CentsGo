@@ -1,4 +1,5 @@
-import 'dart:math' as math;
+
+import '../core/units.dart';
 
 /// Body styles for the Garage. The silhouettes are drawn with a CustomPainter
 /// (no bundled car artwork), so any colour combination is available.
@@ -83,6 +84,7 @@ class Vehicle {
     required this.deadlines,
     this.odometerKm,
     this.createdAt,
+    this.consumptionUnit,
   });
 
   final String id;
@@ -99,6 +101,9 @@ class Vehicle {
 
   /// Declared or measured consumption: litres per 100 km (kWh/100 km for EVs).
   final double consumption;
+
+  /// Optional per-vehicle display unit; when null the app preference is used.
+  final ConsumptionUnit? consumptionUnit;
   final VehicleColor color;
   final List<VehicleDeadline> deadlines;
   final double? odometerKm;
@@ -129,6 +134,8 @@ class Vehicle {
     VehicleColor? color,
     List<VehicleDeadline>? deadlines,
     double? odometerKm,
+    ConsumptionUnit? consumptionUnit,
+    bool clearConsumptionUnit = false,
   }) {
     return Vehicle(
       id: id,
@@ -145,6 +152,7 @@ class Vehicle {
       deadlines: deadlines ?? this.deadlines,
       odometerKm: odometerKm ?? this.odometerKm,
       createdAt: createdAt,
+      consumptionUnit: clearConsumptionUnit ? null : (consumptionUnit ?? this.consumptionUnit),
     );
   }
 
@@ -163,6 +171,7 @@ class Vehicle {
         'deadlines': deadlines.map((d) => d.toJson()).toList(),
         'odometerKm': odometerKm,
         'createdAt': (createdAt ?? DateTime.now()).toIso8601String(),
+        'consumptionUnit': consumptionUnit?.name,
       };
 
   static Vehicle fromJson(Map<String, dynamic> json) {
@@ -189,6 +198,12 @@ class Vehicle {
           .toList(),
       odometerKm: (json['odometerKm'] as num?)?.toDouble(),
       createdAt: DateTime.tryParse(json['createdAt'] as String? ?? ''),
+      consumptionUnit: json['consumptionUnit'] == null
+          ? null
+          : ConsumptionUnit.values.firstWhere(
+              (u) => u.name == json['consumptionUnit'],
+              orElse: () => ConsumptionUnit.litersPer100km,
+            ),
     );
   }
 }
@@ -204,6 +219,9 @@ class Refuel {
     this.stationName = '',
     this.odometerKm,
     this.notes = '',
+    this.fullTank = true,
+    this.manualPrice = false,
+    this.stationId,
   });
 
   final String id;
@@ -214,6 +232,14 @@ class Refuel {
   final String stationName;
   final double? odometerKm;
   final String notes;
+
+  /// A partial refuel must not be used as a consumption anchor: only full
+  /// tanks delimit a measurable interval.
+  final bool fullTank;
+
+  /// True when the user typed the €/L instead of taking it from MIMIT.
+  final bool manualPrice;
+  final String? stationId;
 
   double get total => liters * pricePerLiter;
 
@@ -226,6 +252,9 @@ class Refuel {
         'stationName': stationName,
         'odometerKm': odometerKm,
         'notes': notes,
+        'fullTank': fullTank,
+        'manualPrice': manualPrice,
+        'stationId': stationId,
       };
 
   static Refuel fromJson(Map<String, dynamic> json) => Refuel(
@@ -237,6 +266,9 @@ class Refuel {
         stationName: json['stationName'] as String? ?? '',
         odometerKm: (json['odometerKm'] as num?)?.toDouble(),
         notes: json['notes'] as String? ?? '',
+        fullTank: json['fullTank'] as bool? ?? true,
+        manualPrice: json['manualPrice'] as bool? ?? false,
+        stationId: json['stationId'] as String?,
       );
 }
 
@@ -251,6 +283,11 @@ class GarageStats {
     required this.refuels,
     required this.measuredConsumption,
     required this.odometerKm,
+    this.measuredKm = 0,
+    this.measuredCost,
+    this.consumptionIsApproximate = false,
+    this.fullTanks = 0,
+    this.partialRefuels = 0,
   });
 
   final double monthSpend;
@@ -259,38 +296,93 @@ class GarageStats {
   final double totalLiters;
   final double avgPrice;
   final int refuels;
+
+  /// Litres (or kWh) per 100 km measured from the diary, null when there are
+  /// not enough data points.
   final double? measuredConsumption;
   final double? odometerKm;
 
-  double get monthCostPerKm {
-    final km = odometerKm;
-    if (km == null || km <= 0 || monthLiters <= 0) return 0;
-    return monthSpend / math.max(km, 1);
-  }
+  /// Kilometres covered by the measured intervals.
+  final double measuredKm;
+
+  /// Real €/km from the fuel actually paid in the measured intervals.
+  final Money? measuredCost;
+
+  /// True when the value comes from consecutive odometer readings instead of
+  /// two full tanks (less precise).
+  final bool consumptionIsApproximate;
+  final int fullTanks;
+  final int partialRefuels;
+
+  /// Estimated €/km at [pricePerLiter] for the declared consumption.
+  Money costPerKm(double pricePerLiter, double consumptionPer100) =>
+      Money(consumptionPer100 / 100 * pricePerLiter);
 
   static GarageStats from(List<Refuel> refuels, {DateTime? now}) {
     final ref = now ?? DateTime.now();
     var monthSpend = 0.0, monthLiters = 0.0, totalSpend = 0.0, totalLiters = 0.0;
+    var fullTanks = 0, partial = 0;
     for (final r in refuels) {
       totalSpend += r.total;
       totalLiters += r.liters;
+      r.fullTank ? fullTanks++ : partial++;
       if (r.date.year == ref.year && r.date.month == ref.month) {
         monthSpend += r.total;
         monthLiters += r.liters;
       }
     }
+
     final sorted = [...refuels]..sort((a, b) => a.date.compareTo(b.date));
+
+    // Preferred method: two full tanks with an odometer delimit a measurable
+    // interval; every refuel in between (partial ones included) counts.
     double? measured;
-    if (sorted.length >= 2) {
+    var measuredKm = 0.0;
+    double? measuredSpend;
+    var approximate = false;
+
+    final anchors = sorted.where((r) => r.fullTank && r.odometerKm != null).toList();
+    var litersSum = 0.0;
+    var kmSum = 0.0;
+    var spendSum = 0.0;
+    for (var i = 1; i < anchors.length; i++) {
+      final from = sorted.indexOf(anchors[i - 1]);
+      final to = sorted.indexOf(anchors[i]);
+      if (to <= from) continue;
+      final km = (anchors[i].odometerKm! - anchors[i - 1].odometerKm!).abs();
+      if (km < 1) continue;
+      var liters = 0.0;
+      var spend = 0.0;
+      for (var j = from + 1; j <= to; j++) {
+        liters += sorted[j].liters;
+        spend += sorted[j].total;
+      }
+      if (liters <= 0) continue;
+      litersSum += liters;
+      kmSum += km;
+      spendSum += spend;
+    }
+    if (kmSum >= 1 && litersSum > 0) {
+      measured = litersSum / kmSum * 100;
+      measuredKm = kmSum;
+      measuredSpend = spendSum;
+    } else {
+      // Fallback: consecutive odometer readings, marked as approximate.
       final withOdo = sorted.where((r) => r.odometerKm != null).toList();
       if (withOdo.length >= 2) {
         final first = withOdo.first;
         final last = withOdo.last;
         final km = (last.odometerKm! - first.odometerKm!).abs();
         final liters = withOdo.skip(1).fold<double>(0, (a, b) => a + b.liters);
-        if (km > 1 && liters > 0) measured = liters / km * 100;
+        if (km > 1 && liters > 0) {
+          measured = liters / km * 100;
+          measuredKm = km;
+          measuredSpend = withOdo.skip(1).fold<double>(0, (a, b) => a + b.total);
+          approximate = true;
+        }
       }
     }
+
     final odo = sorted.isEmpty ? null : sorted.last.odometerKm;
     return GarageStats(
       monthSpend: monthSpend,
@@ -301,6 +393,11 @@ class GarageStats {
       refuels: refuels.length,
       measuredConsumption: measured,
       odometerKm: odo,
+      measuredKm: measuredKm,
+      measuredCost: measuredSpend == null || measuredKm <= 0 ? null : Money(measuredSpend / measuredKm),
+      consumptionIsApproximate: approximate,
+      fullTanks: fullTanks,
+      partialRefuels: partial,
     );
   }
 }

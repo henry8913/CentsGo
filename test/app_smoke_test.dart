@@ -142,8 +142,8 @@ void main() {
 
   testWidgets('trip tab renders', (tester) async {
     await pumpAt(tester, TripTab(state: state));
-    expect(find.text('Viaggio'), findsOneWidget);
-    expect(find.text('Cerca lungo il percorso'), findsOneWidget);
+    expect(find.text('Percorso'), findsOneWidget);
+    expect(find.textContaining('Calcola percorso'), findsOneWidget);
   });
 
   testWidgets('garage tab shows the empty state', (tester) async {

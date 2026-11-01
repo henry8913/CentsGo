@@ -2,10 +2,91 @@ import 'package:flutter/material.dart';
 
 import '../../core/format.dart';
 import '../../models/station.dart';
+import '../../models/vehicle.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/ui.dart';
 import '../station/station_sheet.dart';
+
+class _Digest extends StatelessWidget {
+  const _Digest({required this.state});
+
+  final AppState state;
+
+  @override
+  Widget build(BuildContext context) {
+    final p = context.palette;
+    final now = DateTime.now();
+    final deadlines = <(Vehicle, VehicleDeadline)>[];
+    for (final vehicle in state.vehicles) {
+      for (final deadline in vehicle.deadlines) {
+        if (deadline.daysLeft(now) <= 30) deadlines.add((vehicle, deadline));
+      }
+    }
+    deadlines.sort((a, b) => a.$2.daysLeft(now).compareTo(b.$2.daysLeft(now)));
+    final drops = state.alerts.where((a) => a.isDrop).length;
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: p.brandSoft,
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: p.brand.withValues(alpha: 0.25)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(Icons.insights, size: 18, color: p.brand),
+              const SizedBox(width: 6),
+              Text('Riepilogo', style: TextStyle(fontSize: 13, fontWeight: FontWeight.w700, color: p.ink)),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            '${state.favorites.length} preferiti · $drops cali di prezzo · ${deadlines.length} scadenze entro 30 giorni',
+            style: TextStyle(fontSize: 12.5, color: p.ink),
+          ),
+          if (deadlines.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            for (final entry in deadlines.take(4))
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Row(
+                  children: [
+                    Icon(
+                      entry.$2.isOverdue(now) ? Icons.error_outline : Icons.schedule,
+                      size: 14,
+                      color: entry.$2.isOverdue(now) ? p.bad : p.warn,
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(
+                        '${entry.$1.displayName} · ${entry.$2.kind}',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(fontSize: 11.5, color: p.ink),
+                      ),
+                    ),
+                    Text(
+                      entry.$2.isOverdue(now)
+                          ? 'scaduta'
+                          : 'tra ${entry.$2.daysLeft(now)} gg',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w700,
+                        color: entry.$2.isOverdue(now) ? p.bad : p.warn,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
 
 class AlertsScreen extends StatelessWidget {
   const AlertsScreen({super.key, required this.state});
@@ -38,6 +119,8 @@ class AlertsScreen extends StatelessWidget {
           return ListView(
             padding: const EdgeInsets.fromLTRB(20, 8, 20, 30),
             children: [
+              _Digest(state: state),
+              const SizedBox(height: 10),
               const InfoBanner(
                 text: 'CentsGo confronta il prezzo dei preferiti ad ogni aggiornamento e registra la variazione. '
                     'Gli avvisi restano sul dispositivo.',
@@ -137,7 +220,7 @@ class AlertsScreen extends StatelessWidget {
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             if (price != null)
-                              Text(Fmt.price(price), style: Money.style(p, size: 15, color: p.good)),
+                              Text(Fmt.price(price), style: PriceType.style(p, size: 15, color: p.good)),
                             IconButton(
                               icon: Icon(Icons.favorite, color: p.bad, size: 18),
                               onPressed: () => state.toggleFavorite(st),

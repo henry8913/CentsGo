@@ -1,4 +1,6 @@
+import '../core/units.dart';
 import '../theme/app_theme.dart';
+import 'address.dart';
 import 'trip.dart';
 
 export 'trip.dart';
@@ -25,7 +27,11 @@ class Fuels {
 
   static const all = [benzina, gasolio, gpl, metano, hvo];
 
-  static String unit(String fuel) => fuel == metano ? 'kg' : 'L';
+  static String unit(String fuel) {
+    if (fuel == metano) return 'kg';
+    if (fuel == elettrico) return 'kWh';
+    return 'L';
+  }
 
   static String label(String fuel) => fuel;
 
@@ -65,6 +71,11 @@ class AppSettings {
     this.onboarded = false,
     this.brand,
     this.followGps = true,
+    this.consumptionUnit = ConsumptionUnit.litersPer100km,
+    this.householdSize = 1,
+    this.hourlyValue = 0,
+    this.homeAddress,
+    this.workAddress,
   });
 
   final String fuel;
@@ -86,6 +97,19 @@ class AppSettings {
   /// area the user picked manually.
   final bool followGps;
 
+  /// Display unit for fuel consumption (never changes stored data).
+  final ConsumptionUnit consumptionUnit;
+
+  /// Default number of people in the car, used by the cost split.
+  final int householdSize;
+
+  /// Value of time in €/hour, used to compare toll vs free routes.
+  final double hourlyValue;
+
+  /// Saved shortcuts, reused by the trip planner.
+  final Address? homeAddress;
+  final Address? workAddress;
+
   AppSettings copyWith({
     String? fuel,
     bool? selfService,
@@ -99,6 +123,13 @@ class AppSettings {
     String? brand,
     bool clearBrand = false,
     bool? followGps,
+    ConsumptionUnit? consumptionUnit,
+    int? householdSize,
+    double? hourlyValue,
+    Address? homeAddress,
+    Address? workAddress,
+    bool clearHomeAddress = false,
+    bool clearWorkAddress = false,
   }) {
     return AppSettings(
       fuel: fuel ?? this.fuel,
@@ -112,6 +143,11 @@ class AppSettings {
       onboarded: onboarded ?? this.onboarded,
       brand: clearBrand ? null : (brand ?? this.brand),
       followGps: followGps ?? this.followGps,
+      consumptionUnit: consumptionUnit ?? this.consumptionUnit,
+      householdSize: householdSize ?? this.householdSize,
+      hourlyValue: hourlyValue ?? this.hourlyValue,
+      homeAddress: clearHomeAddress ? null : (homeAddress ?? this.homeAddress),
+      workAddress: clearWorkAddress ? null : (workAddress ?? this.workAddress),
     );
   }
 
@@ -127,6 +163,11 @@ class AppSettings {
         'onboarded': onboarded,
         'brand': brand,
         'followGps': followGps,
+        'consumptionUnit': consumptionUnit.name,
+        'householdSize': householdSize,
+        'hourlyValue': hourlyValue,
+        'homeAddress': homeAddress?.toJson(),
+        'workAddress': workAddress?.toJson(),
       };
 
   static AppSettings fromJson(Map<String, dynamic> json) {
@@ -152,6 +193,18 @@ class AppSettings {
       onboarded: json['onboarded'] as bool? ?? false,
       brand: json['brand'] as String?,
       followGps: json['followGps'] as bool? ?? true,
+      consumptionUnit: ConsumptionUnit.values.firstWhere(
+        (u) => u.name == json['consumptionUnit'],
+        orElse: () => ConsumptionUnit.litersPer100km,
+      ),
+      householdSize: (json['householdSize'] as num?)?.toInt() ?? 1,
+      hourlyValue: (json['hourlyValue'] as num?)?.toDouble() ?? 0,
+      homeAddress: json['homeAddress'] == null
+          ? null
+          : Address.fromJson((json['homeAddress'] as Map).cast<String, dynamic>()),
+      workAddress: json['workAddress'] == null
+          ? null
+          : Address.fromJson((json['workAddress'] as Map).cast<String, dynamic>()),
     );
   }
 }

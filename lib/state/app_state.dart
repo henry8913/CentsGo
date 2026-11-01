@@ -5,13 +5,20 @@ import 'package:flutter/widgets.dart';
 import 'package:latlong2/latlong.dart';
 
 import '../core/format.dart';
+import '../core/net/api_client.dart';
+import '../core/trip/toll_engine.dart';
+import '../core/net/api_client.dart';
 import '../core/geo.dart';
+import '../data/address_index.dart';
 import '../data/catalog.dart';
 import '../data/catalog_cache.dart';
 import '../data/layers.dart';
+import '../data/net/geocoding_service.dart';
+import '../data/net/routing_service.dart';
 import '../data/mimit_source.dart';
 import '../data/local_store.dart';
 import '../models/settings.dart';
+import '../models/trip_record.dart';
 import '../models/station.dart';
 import '../models/vehicle.dart';
 import '../theme/app_theme.dart';
@@ -113,6 +120,26 @@ class PriceAlert {
 }
 
 /// National min/median/max for one fuel, computed once per data revision.
+class RefuelSuggestion {
+  const RefuelSuggestion({
+    required this.station,
+    required this.fuel,
+    required this.selfService,
+    required this.referencePrice,
+    required this.detourKm,
+    required this.netSaving,
+    required this.liters,
+  });
+
+  final StationHit station;
+  final String fuel;
+  final bool selfService;
+  final double referencePrice;
+  final double detourKm;
+  final double netSaving;
+  final double liters;
+}
+
 class NationalStat {
   const NationalStat({required this.fuel, required this.min, required this.median, required this.max, required this.count});
   final String fuel;
@@ -156,6 +183,7 @@ class AppState extends ChangeNotifier {
   LocalStore? _store;
   final CatalogCache _cache = CatalogCache();
   StationCatalog? _catalog;
+  AddressIndex? _addresses;
   final MapLayers layers = MapLayers();
 
   AppSettings settings = const AppSettings();
@@ -199,9 +227,22 @@ class AppState extends ChangeNotifier {
   final Map<String, List<CountryDayPrice>> _nationalHistory = <String, List<CountryDayPrice>>{};
   final Map<String, double> _lastSeen = <String, double>{};
   final Map<String, NationalStat> _national = <String, NationalStat>{};
+  final ApiClient _api = ApiClient(userAgent: 'CentsGo/1.0 (+https://github.com/henry8913/CentsGo)');
+  GeocodingService? _geocoder;
+  RoutingService? _router;
+  TollEngine? _tolls;
+  List<TripRecord> _tripRecords = <TripRecord>[];
   int _nationalRevision = -1;
 
   StationCatalog get catalog => _catalog!;
+
+  /// Offline index of comuni/province used by every address autocomplete.
+  AddressIndex get addresses => _addresses!;
+
+  GeocodingService get geocoder => _geocoder!;
+  RoutingService get router => _router!;
+  TollEngine get tolls => _tolls!;
+  List<TripRecord> get tripRecords => List.unmodifiable(_tripRecords);
   bool get ready => !loading && _catalog != null;
   LatLng get center => _center;
 
@@ -251,6 +292,10 @@ class AppState extends ChangeNotifier {
       _store = await LocalStore.open();
       _restore(_store!.read());
       _catalog = await StationCatalog.load(cache: _cache);
+      _addresses = await AddressIndex.load();
+      _geocoder = GeocodingService(client: _api, index: _addresses);
+      _router = RoutingService(client: _api);
+      _tolls = await TollEngine.load();
       _lastSync ??= await _cache.lastModified();
       dataVersionLabel = 'Dati ${catalog.extractionDate} · ${Fmt.count(catalog.stations.length)} impianti';
       if (settings.themeMode == AppThemeMode.system) {
@@ -522,6 +567,64 @@ class AppState extends ChangeNotifier {
     if (_trips.length > 8) _trips.removeRange(8, _trips.length);
     notifyListeners();
     await _save();
+  }
+
+  Future<void> saveTripRecord(TripRecord record) async {
+    _tripRecords.insert(0, record);
+    if (_tripRecords.length > 40) _tripRecords.removeRange(40, _tripRecords.length);
+    notifyListeners();
+    await _save();
+  }
+
+  Future<void> removeTripRecord(String id) async {
+    _tripRecords.removeWhere((t) => t.id == id);
+    notifyListeners();
+    await _save();
+  }
+
+  /// Cheapest off-motorway station just outside the route compared with the
+  /// motorway service areas: the classic "fuel before the exit" saving.
+  RefuelSuggestion? suggestRefuel(List<LatLng> path, {String? fuel, bool? self}) {
+    final cat = _catalog;
+    if (cat == null || path.length < 2) return null;
+    final f = fuel ?? settings.fuel;
+    final s = self ?? settings.selfService;
+    final hits = cat.alongPath(
+      path: path,
+      fuel: f,
+      self: s,
+      sort: SortMode.price,
+      corridorKm: 3.5,
+      limit: 120,
+    );
+    if (hits.length < 2) return null;
+    final motorway = hits.where((h) => h.station.isHighway).toList();
+    final off = hits.where((h) => !h.station.isHighway).toList();
+    if (off.isEmpty) return null;
+    final reference = motorway.isEmpty ? hits.first.price : motorway.first.price;
+    final vehicle = activeVehicle;
+    final tank = vehicle?.tankLiters ?? 50;
+    final consumption = vehicle?.consumption ?? 6;
+    RefuelSuggestion? best;
+    for (final hit in off) {
+      if (hit.price >= reference - 0.005) continue;
+      final detourKm = hit.distanceKm * 2;
+      final detourCost = detourKm * consumption / 100 * hit.price;
+      final gross = (reference - hit.price) * tank;
+      final net = gross - detourCost;
+      if (best == null || net > best.netSaving) {
+        best = RefuelSuggestion(
+          station: hit,
+          fuel: f,
+          selfService: s,
+          referencePrice: reference,
+          detourKm: detourKm,
+          netSaving: net,
+          liters: tank,
+        );
+      }
+    }
+    return best != null && best.netSaving > 0.2 ? best : null;
   }
 
   Future<void> removeTrip(String id) async {
@@ -816,6 +919,9 @@ class AppState extends ChangeNotifier {
           .map((e) => PriceAlert.fromJson((e as Map).cast<String, dynamic>())));
       final readAt = data['alertsReadAt'] as String?;
       if (readAt != null) _alertsReadAt = DateTime.tryParse(readAt) ?? _alertsReadAt;
+      _tripRecords = ((data['tripRecords'] as List?) ?? const [])
+          .map((e) => TripRecord.fromJson((e as Map).cast<String, dynamic>()))
+          .toList();
       final syncedAt = data['lastSync'] as String?;
       if (syncedAt != null) _lastSync = DateTime.tryParse(syncedAt);
       autoSync = data['autoSync'] as bool? ?? true;
@@ -839,6 +945,7 @@ class AppState extends ChangeNotifier {
       'lastSeen': _lastSeen,
       'alerts': _alerts.map((a) => a.toJson()).toList(),
       'alertsReadAt': _alertsReadAt.toIso8601String(),
+      'tripRecords': _tripRecords.map((t) => t.toJson()).toList(),
       'lastSync': _lastSync?.toIso8601String(),
       'autoSync': autoSync,
     });

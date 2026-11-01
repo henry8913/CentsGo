@@ -1,0 +1,94 @@
+{
+  "meta": {
+    "currency": "EUR",
+    "validity": "2026-10-31",
+    "source": "ART/MIT e tariffe delle concessionarie — valori non ancora validati riga per riga",
+    "note": "Le tariffe per concessionaria sono una stima basata sulla tariffa media nazionale; l'app le etichetta come stima finché non vengono verificate. L'IVA è inclusa nelle tariffe pubblicate: non viene aggiunta."
+  },
+  "national": {
+    "eur_per_km_class_a": 0.095,
+    "minimum": 0.30,
+    "rounding_step": 0.10
+  },
+  "class_factor": {
+    "A": 1.0,
+    "B": 1.4,
+    "3": 1.6,
+    "4": 1.9,
+    "5": 2.4
+  },
+  "concessions": [
+    {
+      "name": "Autostrade per l'Italia",
+      "refs": ["A1", "A4", "A7", "A8", "A9", "A10", "A11", "A12", "A13", "A14", "A16", "A26", "A30", "A56", "A90"],
+      "eur_per_km_class_a": 0.098,
+      "verified": false,
+      "source": "stima su tariffa media nazionale",
+      "validity": "2026-10-31"
+    },
+    {
+      "name": "Autostrada del Brennero",
+      "refs": ["A22"],
+      "eur_per_km_class_a": 0.092,
+      "verified": false,
+      "source": "stima su tariffa media nazionale",
+      "validity": "2026-10-31"
+    },
+    {
+      "name": "Autostrade Valdostane",
+      "refs": ["A5"],
+      "eur_per_km_class_a": 0.115,
+      "verified": false,
+      "source": "stima su tariffa media nazionale",
+      "validity": "2026-10-31"
+    },
+    {
+      "name": "Autovie Venete",
+      "refs": ["A4", "A23", "A28"],
+      "eur_per_km_class_a": 0.089,
+      "verified": false,
+      "source": "stima su tariffa media nazionale",
+      "validity": "2026-10-31"
+    },
+    {
+      "name": "Autostrada dei Fiori",
+      "refs": ["A6", "A10"],
+      "eur_per_km_class_a": 0.101,
+      "verified": false,
+      "source": "stima su tariffa media nazionale",
+      "validity": "2026-10-31"
+    },
+    {
+      "name": "Autostrade Siciliane",
+      "refs": ["A18", "A19", "A20", "A29"],
+      "eur_per_km_class_a": 0.072,
+      "verified": false,
+      "source": "stima su tariffa media nazionale",
+      "validity": "2026-10-31"
+    },
+    {
+      "name": "Strada dei Parchi",
+      "refs": ["A24", "A25"],
+      "eur_per_km_class_a": 0.084,
+      "verified": false,
+      "source": "stima su tariffa media nazionale",
+      "validity": "2026-10-31"
+    },
+    {
+      "name": "Autostrade Meridionali",
+      "refs": ["A3", "A30"],
+      "eur_per_km_class_a": 0.083,
+      "verified": false,
+      "source": "stima su tariffa media nazionale",
+      "validity": "2026-10-31"
+    },
+    {
+      "name": "Pedemontana / tangenziali",
+      "refs": ["A36", "A50", "A51", "A52", "A54", "A55", "A57", "A58", "A60", "A91"],
+      "eur_per_km_class_a": 0.105,
+      "verified": false,
+      "source": "stima su tariffa media nazionale",
+      "validity": "2026-10-31"
+    }
+  ]
+}
