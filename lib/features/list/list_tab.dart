@@ -399,7 +399,7 @@ class _SmartFillCard extends StatelessWidget {
                   alignment: Alignment.centerLeft,
                   child: Text(
                     Fmt.price(target.price),
-                    style: Money.style(p, size: 34, color: p.brandOn),
+                    style: PriceType.style(p, size: 34, color: p.brandOn),
                   ),
                 ),
               ),

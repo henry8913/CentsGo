@@ -294,7 +294,7 @@ TextStyle displayStyle(AppPalette p, {double size = 30, Color? color}) => TextSt
     );
 
 /// Prices use a monospaced face so digits line up like a station price board.
-class Money {
+class PriceType {
   static TextStyle style(AppPalette p, {double size = 22, Color? color, FontWeight weight = FontWeight.w600}) {
     return TextStyle(
       fontFamily: AppFonts.mono,

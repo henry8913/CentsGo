@@ -197,7 +197,7 @@ class _SearchTabState extends State<SearchTab> {
               ? null
               : Text(
                   Fmt.price(price),
-                  style: Money.style(p, size: 15, color: p.good),
+                  style: PriceType.style(p, size: 15, color: p.good),
                 ),
           onTap: () => showStationSheet(context, state: state, station: station),
         );

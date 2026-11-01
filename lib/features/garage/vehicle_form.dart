@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/format.dart';
+import '../../core/fuel_units.dart';
+import '../../core/units.dart';
 import '../../data/vehicle_catalog.dart';
 import '../../models/settings.dart';
 import '../../models/vehicle.dart';
@@ -37,6 +39,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   final _consumption = TextEditingController();
 
   VehicleType _type = VehicleType.berlina;
+  late ConsumptionUnit _unit =
+      widget.vehicle?.consumptionUnit ?? widget.state.settings.consumptionUnit;
   VehicleColor _color = VehicleColor.arancio;
   String _fuel = Fuels.benzina;
   String? _brand;
@@ -59,7 +63,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       _plate.text = v.plate;
       _year.text = '${v.year}';
       _tank.text = v.tankLiters.toStringAsFixed(1);
-      _consumption.text = v.consumption.toStringAsFixed(1);
+      final display = Consumption.per100km(v.consumption).valueIn(_unit);
+      _consumption.text = display.toStringAsFixed(1);
       _type = v.type;
       _color = v.color;
       _fuel = v.fuel;
@@ -79,7 +84,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       final year = DateTime.now().year;
       _year.text = '$year';
       _tank.text = _type.defaultTank.toStringAsFixed(0);
-      _consumption.text = '6.5';
+      _consumption.text = Consumption.per100km(6.5).valueIn(_unit).toStringAsFixed(1);
     }
     VehicleCatalog.load().then((c) {
       if (mounted) {
@@ -269,7 +274,9 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
               Expanded(
                 child: _Field(
                   controller: _tank,
-                  label: _fuel == Fuels.elettrico ? 'Batteria (kWh)' : 'Serbatoio (L)',
+                  label: _fuel == Fuels.elettrico
+                      ? 'Batteria (kWh)'
+                      : 'Serbatoio (${FuelUnits.volume(_fuel)})',
                   keyboard: const TextInputType.numberWithOptions(decimal: true),
                 ),
               ),
@@ -277,12 +284,37 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
               Expanded(
                 child: _Field(
                   controller: _consumption,
-                  label: _fuel == Fuels.elettrico ? 'Consumo (kWh/100)' : 'Consumo (L/100)',
+                  label: 'Consumo (${FuelUnits.consumption(_fuel, per100: _unit == ConsumptionUnit.litersPer100km)})',
                   keyboard: const TextInputType.numberWithOptions(decimal: true),
                 ),
               ),
             ],
           ),
+          Row(
+            children: [
+              Text('Unità consumo', style: TextStyle(fontSize: 12, color: context.palette.muted)),
+              const Spacer(),
+              for (final unit in ConsumptionUnit.values)
+                Padding(
+                  padding: const EdgeInsets.only(left: 6),
+                  child: PillChip(
+                    label: FuelUnits.consumption(_fuel, per100: unit == ConsumptionUnit.litersPer100km),
+                    selected: _unit == unit,
+                    dense: true,
+                    onTap: () => setState(() {
+                      if (_unit == unit) return;
+                      final current = double.tryParse(_consumption.text.replaceAll(',', '.')) ?? 0;
+                      final canonical = Consumption.fromValue(current, _unit).per100;
+                      _unit = unit;
+                      _consumption.text = canonical <= 0
+                          ? ''
+                          : Consumption.per100km(canonical).valueIn(unit).toStringAsFixed(1);
+                    }),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
           const SectionTitle('Scadenze'),
           _DateRow(
             label: 'Assicurazione RCA',
@@ -342,7 +374,8 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
   Future<void> _save() async {
     final state = widget.state;
     final tank = double.tryParse(_tank.text.replaceAll(',', '.')) ?? _type.defaultTank;
-    final consumption = double.tryParse(_consumption.text.replaceAll(',', '.')) ?? 6.5;
+    final typedConsumption = double.tryParse(_consumption.text.replaceAll(',', '.')) ?? 6.5;
+    final consumption = Consumption.fromValue(typedConsumption, _unit).per100;
     final year = int.tryParse(_year.text) ?? DateTime.now().year;
     final deadlines = <VehicleDeadline>[
       if (_insurance != null) VehicleDeadline(kind: 'Assicurazione RCA', due: _insurance!),
@@ -363,6 +396,7 @@ class _VehicleFormScreenState extends State<VehicleFormScreen> {
       color: _color,
       deadlines: deadlines,
       odometerKm: widget.vehicle?.odometerKm,
+      consumptionUnit: _unit,
     );
     if (widget.vehicle == null) {
       await state.addVehicle(vehicle);

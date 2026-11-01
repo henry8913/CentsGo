@@ -1,6 +1,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -8,6 +9,7 @@ import 'package:url_launcher/url_launcher.dart';
 import '../../core/format.dart';
 import '../../core/geo.dart';
 import '../../core/launcher.dart';
+import '../../models/address.dart';
 import '../../models/map_layers.dart';
 import '../../models/settings.dart';
 import '../../models/station.dart';
@@ -172,6 +174,7 @@ class _MapTabState extends State<MapTab> {
         backgroundColor: p.surfaceAlt,
         interactionOptions: const InteractionOptions(flags: InteractiveFlag.all),
         onPositionChanged: _onCameraChanged,
+        onLongPress: (_, point) => _reverseGeocode(point),
       ),
       children: [
         TileLayer(
@@ -470,6 +473,123 @@ class _MapTabState extends State<MapTab> {
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  /// Long press: reverse geocode the point and offer the address as home/work or
+  /// as the new search area. Nominatim is called once, with cache.
+  Future<void> _reverseGeocode(LatLng point) async {
+    final p = context.palette;
+    await showAppSheet<void>(
+      context,
+      heightFactor: 0.6,
+      child: FutureBuilder<Address?>(
+        future: state.geocoder.reverse(point),
+        builder: (context, snapshot) {
+          final address = snapshot.data;
+          final loading = snapshot.connectionState == ConnectionState.waiting;
+          return ListView(
+            padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+            children: [
+              const SheetTitle('Posizione sulla mappa', subtitle: 'Indirizzo dal punto selezionato'),
+              const SizedBox(height: 8),
+              if (loading)
+                const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 20),
+                  child: Center(child: CircularProgressIndicator()),
+                )
+              else ...[
+                Text(
+                  address?.oneLine.isNotEmpty == true
+                      ? address!.oneLine
+                      : '${point.latitude.toStringAsFixed(4)}, ${point.longitude.toStringAsFixed(4)}',
+                  style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600, color: p.ink),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  address == null
+                      ? 'Indirizzo non disponibile (offline o limite raggiunto).'
+                      : 'Nominatim · © OpenStreetMap contributors',
+                  style: TextStyle(fontSize: 10.5, color: p.muted),
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () {
+                    state.setCenter(point, label: address?.shortLabel);
+                    _map.move(point, _zoom < 12 ? 12 : _zoom);
+                    Navigator.of(context).pop();
+                  },
+                  icon: const Icon(Icons.my_location, size: 18),
+                  label: const Text('Cerca in quest\'area'),
+                ),
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: address == null
+                            ? null
+                            : () {
+                                state.updateSettings(state.settings.copyWith(homeAddress: address));
+                                Navigator.of(context).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Salvato come Casa')),
+                                );
+                              },
+                        icon: const Icon(Icons.home_outlined, size: 18),
+                        label: const Text('Casa'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: p.brand,
+                          side: BorderSide(color: p.brand),
+                          minimumSize: const Size.fromHeight(46),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: OutlinedButton.icon(
+                        onPressed: address == null
+                            ? null
+                            : () {
+                                state.updateSettings(state.settings.copyWith(workAddress: address));
+                                Navigator.of(context).pop();
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  const SnackBar(content: Text('Salvato come Lavoro')),
+                                );
+                              },
+                        icon: const Icon(Icons.work_outline, size: 18),
+                        label: const Text('Lavoro'),
+                        style: OutlinedButton.styleFrom(
+                          foregroundColor: p.brand,
+                          side: BorderSide(color: p.brand),
+                          minimumSize: const Size.fromHeight(46),
+                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                TextButton.icon(
+                  onPressed: () async {
+                    final text = address?.oneLine ?? '${point.latitude}, ${point.longitude}';
+                    await Clipboard.setData(ClipboardData(text: text));
+                    if (context.mounted) {
+                      Navigator.of(context).pop();
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(content: Text('Indirizzo copiato')),
+                      );
+                    }
+                  },
+                  icon: const Icon(Icons.copy_all_outlined, size: 18),
+                  label: const Text('Copia indirizzo'),
+                ),
+              ],
+            ],
+          );
+        },
       ),
     );
   }
@@ -1041,7 +1161,7 @@ class _CheapestPill extends StatelessWidget {
                 children: [
                   Text(
                     Fmt.price(hit.price),
-                    style: Money.style(p, size: 15, color: p.good),
+                    style: PriceType.style(p, size: 15, color: p.good),
                   ),
                   Text(
                     '$count in vista',

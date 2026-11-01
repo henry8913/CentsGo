@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
 import '../../core/format.dart';
+import '../../core/fuel_units.dart';
 import '../../core/launcher.dart';
+import '../../core/units.dart';
+import '../../models/settings.dart';
 import '../../models/vehicle.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
@@ -9,6 +12,7 @@ import '../../widgets/charts.dart';
 import '../../widgets/ui.dart';
 import '../../widgets/vehicle_art.dart';
 import '../settings/settings_screen.dart';
+import '../stats/costs_screen.dart';
 import 'refuel_form.dart';
 import 'vehicle_form.dart';
 
@@ -34,6 +38,14 @@ class GarageTab extends StatelessWidget {
             subtitle: 'Veicoli, scadenze e spese',
             trailing: Row(
               children: [
+                RoundIconButton(
+                  icon: Icons.insights_outlined,
+                  tooltip: 'Costi dell\'auto',
+                  onTap: () => Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => CostsScreen(state: state)),
+                  ),
+                ),
+                const SizedBox(width: 8),
                 RoundIconButton(
                   icon: Icons.add,
                   filled: true,
@@ -320,7 +332,7 @@ class _MiniStat extends StatelessWidget {
             ],
           ),
           const SizedBox(height: 6),
-          Text(value, style: Money.style(p, size: 16)),
+          Text(value, style: PriceType.style(p, size: 16)),
           Text(caption, style: TextStyle(fontSize: 10.5, color: p.muted), maxLines: 1, overflow: TextOverflow.ellipsis),
         ],
       ),
@@ -338,14 +350,24 @@ class _StatsRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final p = context.palette;
     final stats = state.statsFor(vehicle.id);
-    final consumption = stats.measuredConsumption ?? vehicle.consumption;
+    final unit = vehicle.consumptionUnit ?? state.settings.consumptionUnit;
+    final electric = vehicle.fuel == Fuels.elettrico;
+    final measured = stats.measuredConsumption;
+    final consumption = Consumption.per100km(measured ?? vehicle.consumption);
+    final value = consumption.valueIn(unit);
+    final suffix = FuelUnits.consumption(vehicle.fuel, per100: unit == ConsumptionUnit.litersPer100km);
+    // Electric vehicles have no litres: keep the flag only for the caption.
+    final _ = electric;
+
     final price = state.benchmark(vehicle.fuel);
-    final costPerKm = price == null ? vehicle.costPerKm(1.95) : vehicle.costPerKm(price);
+    final costPerKm = stats.measuredCost ??
+        (price == null ? Money(consumption.per100 / 100 * 1.95) : consumption.costPerKm(price));
+
     return Row(
       children: [
         Expanded(
           child: StatTile(
-            label: 'Spese del mese',
+            label: 'Spese mese',
             value: Fmt.euro(stats.monthSpend),
             icon: Icons.receipt_long_outlined,
             color: p.brand,
@@ -356,22 +378,26 @@ class _StatsRow extends StatelessWidget {
         Expanded(
           child: StatTile(
             label: 'Consumo medio',
-            value: consumption.toStringAsFixed(1).replaceAll('.', ','),
-            unit: 'L/100',
+            value: value <= 0 ? '—' : value.toStringAsFixed(1).replaceAll('.', ','),
+            unit: suffix,
             icon: Icons.thermostat,
             color: p.good,
-            caption: stats.measuredConsumption == null ? 'dichiarato' : 'misurato',
+            caption: measured == null
+                ? 'dichiarato'
+                : stats.consumptionIsApproximate
+                    ? 'stimato su ${Fmt.km(stats.measuredKm)}'
+                    : 'su ${Fmt.km(stats.measuredKm)}',
           ),
         ),
         const SizedBox(width: 10),
         Expanded(
           child: StatTile(
             label: 'Costo per km',
-            value: costPerKm.toStringAsFixed(3).replaceAll('.', ','),
+            value: costPerKm.amount(decimals: 3),
             unit: '€',
             icon: Icons.savings_outlined,
             color: p.warn,
-            caption: 'stimato',
+            caption: stats.measuredCost != null ? 'reale' : 'stimato',
           ),
         ),
       ],
@@ -551,7 +577,7 @@ class _RefuelList extends StatelessWidget {
                       ],
                     ),
                   ),
-                  Text(Fmt.euro(r.total), style: Money.style(p, size: 15)),
+                  Text(Fmt.euro(r.total), style: PriceType.style(p, size: 15)),
                 ],
               ),
             ),

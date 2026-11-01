@@ -131,7 +131,7 @@ app.*.symbols
 .DS_Store
 
 # Generated documentation
-/docs
+#/docs
 
 # Local tooling metadata
 .metadata

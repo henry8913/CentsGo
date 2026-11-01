@@ -174,7 +174,7 @@ class FuelBar extends StatelessWidget {
               const SheetTitle('Raggio di ricerca'),
               Text(
                 '${value.round()} km',
-                style: Money.style(context.palette, size: 34, color: context.palette.brand),
+                style: PriceType.style(context.palette, size: 34, color: context.palette.brand),
               ),
               const SizedBox(height: 8),
               Slider(

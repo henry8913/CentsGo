@@ -19,10 +19,13 @@ Un solo codice per **iOS, Android, macOS, Windows e Linux**.
 | **Lista** | Distributori nel raggio scelto, ordinati per **Prezzo / Distanza / Migliori**, self o servito, colore di convenienza e risparmio stimato |
 | **Mappa** | Prezzi sui pin, posizione reale, ricerca "in quest'area", livelli ZTL / colonnine / officine / autolavaggi / gommisti |
 | **Cerca** | Per distributore (nome, marchio, indirizzo), per zona (comune/provincia) e per autostrada (A1…A90) |
-| **Viaggio** | Partenza e arrivo, deviazione massima configurabile, distributori lungo il percorso, viaggi recenti |
-| **Garage** | Veicoli (8 carrozzerie × 8 colori), pieno stimato, autonomia, costo/km, rifornimenti, consumo misurato, spese mensili, scadenze di bollo/assicurazione/revisione |
-| **Avvisi** | Preferiti monitorati con rilevazione delle variazioni e storico locale dei prezzi |
+| **Percorso & costi** | Indirizzi con civico, routing reale (OSRM con cache e fallback offline), **pedaggio stimato per concessione e classe**, carburante con **prezzo e consumo visibili e modificabili** (formula mostrata: km × consumo ÷ 100 × prezzo) e consumo in **L/100 km o km/L**, con l'unità giusta per metano (kg) ed elettrico (kWh), confronto autostrada vs strade gratuite con valore del tempo, rifornimento smart fuori casello, split per occupante, salvataggio e condivisione del riepilogo |
+| **Garage** | Veicoli (8 carrozzerie × 8 colori), pieno stimato, autonomia, costo/km, rifornimenti inseribili in litri **o in importo**, distributore MIMIT collegato, prezzo manuale, pieno completo/parziale per un consumo reale, spese mensili, scadenze di bollo/assicurazione/revisione |
+| **Unità e valori** | Consumi in **L/100 km o km/L**, ma con l'unità di volume corretta per il carburante: **L** per benzina/gasolio/GPL/HVO, **kg** per il metano, **kWh** per l'elettrico (anche in `km/kg`, `km/kWh`, `€/kg`); valore del tempo e occupanti predefiniti |
+| **Avvisi** | Preferiti monitorati con rilevazione delle variazioni, storico locale dei prezzi, riepilogo con cali e scadenze entro 30 giorni |
+| **Statistiche** | Dashboard costi (carburante + pedaggi), costo reale per km, barre mensili, export **CSV** (rifornimenti e viaggi) e **report PDF** completo, salvati nella cartella documenti |
 | **Aspetto** | Tema chiaro, scuro e **nero AMOLED**; palette arancio; font Plus Jakarta Sans, Archivo Black, IBM Plex Mono |
+| **Indirizzi** | Campi via / civico / CAP / città con autocomplete **offline** sui comuni; geocoding dei civici su richiesta esplicita (Nominatim, cache su disco, 1 req/s); reverse geocoding dalla mappa; scorciatoie Casa e Lavoro |
 | **Dati sempre aggiornati** | Prezzi ufficiali MIMIT scaricati in automatico: controllo leggero ogni 30 minuti, download completo solo quando il ministero pubblica il nuovo file (una volta al giorno). Funziona anche al primo avvio, senza attendere l'utente |
 | **Dataset** | 21.527 impianti, 23.196 colonnine, 225 ZTL, 14.926 servizi, comuni e province — incluso nell'app per l'uso offline |
 
@@ -37,26 +40,30 @@ della mappa) e tutti i dati personali restano sul dispositivo.
   **intl** per i formati italiani.
 - Architettura semplice e testabile: `AppState` (ChangeNotifier) come unica fonte di verità,
   repository di sola lettura per il catalogo, widget senza stato dove possibile.
+- Fondamenta condivise: value object per denaro/distanza/volume/consumi, client HTTP unico con
+  timeout, retry, rate-limit, User-Agent e cache su disco, indice indirizzi offline.
+- Motori puri e testabili: decoder polilinea, motore pedaggi per concessione/classe, motore costi
+  di viaggio, export CSV e PDF (pacchetto `pdf`, puro Dart).
 - Nessun backend obbligatorio: lo snapshot dei prezzi è incluso e aggiornabile.
 
 ```
 lib/
 ├── main.dart / app.dart      bootstrap, temi, routing di primo livello
-├── core/                     formati (€, km, date), geodesia, apertura link
+├── core/                     unità di misura, formati, geodesia, HTTP+cache, apertura link
 ├── models/                   Station, Vehicle/Refuel, Settings, Trip, layer mappa
-├── data/                     catalogo, layer lazy, storage, listini auto
+├── data/                     catalogo, indirizzi, routing/geocoding, storage, listini auto
 ├── state/                    AppState + LocationService
 ├── theme/                    palette e tipografia
 ├── widgets/                  UI kit (card, chip, grafici, disegno veicoli)
 └── features/
-    ├── list/ map/ search/ trip/ garage/
+    ├── list/ map/ search/ trip/ garage/ stats/
     ├── station/ alerts/ settings/ common/
 assets/
 ├── data/                     snapshot JSON (impianti, EV, ZTL, POI, comuni)
 ├── fonts/                    Jakarta, Archivo Black, IBM Plex Mono (SIL OFL)
 └── branding/                 icona app (generata da tool/generate_icons.dart)
 tool/                         script di build dati, icone, avvio macOS
-docs/                         guida di compilazione e roadmap
+docs/                         guida di compilazione
 ```
 
 ## Avvio rapido
@@ -66,7 +73,7 @@ git clone <url-del-repo> CentsGo && cd CentsGo
 flutter pub get
 
 flutter run -d macos      # oppure: ios, android, windows, linux
-flutter test              # 22 test
+flutter test              # 44 test
 ```
 
 Istruzioni dettagliate per ogni piattaforma (Xcode e Android Studio compresi, senza terminale):
@@ -107,7 +114,7 @@ compatto caricato in un isolate all'avvio.
 | **Windows** | **non ancora compilato** né testato |
 | **Linux** | **non ancora compilato** né testato |
 
-Verifiche automatiche attuali: `flutter analyze` senza errori e `flutter test` con 24 test verdi.
+Verifiche automatiche attuali: `flutter analyze` senza errori e `flutter test` con 44 test verdi.
 
 ## Contribuire
 
@@ -116,8 +123,7 @@ Verifiche automatiche attuali: `flutter analyze` senza errori e `flutter test` c
 3. mantieni lo stile esistente (widget piccoli, nessuna dipendenza non necessaria);
 4. apri una pull request con una descrizione di cosa cambia e come l'hai provato.
 
-Le idee già pianificate sono in [docs/ROADMAP.md](docs/ROADMAP.md). Per cambiare l'icona:
-`flutter test tool/generate_icons.dart && dart run flutter_launcher_icons`.
+Per cambiare l'icona: `flutter test tool/generate_icons.dart && dart run flutter_launcher_icons`.
 
 ## Attribuzioni e licenza
 

@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import '../../core/format.dart';
+import '../../core/units.dart';
 import '../../models/settings.dart';
 import '../../state/app_state.dart';
 import '../../theme/app_theme.dart';
 import '../../widgets/fuel_bar.dart';
 import '../../widgets/ui.dart';
+import '../common/address_sheet.dart';
 import '../common/place_picker.dart';
 
 class SettingsScreen extends StatelessWidget {
@@ -57,6 +59,59 @@ class SettingsScreen extends StatelessWidget {
                       current: s.themeMode,
                       onTap: () => state.setThemeMode(AppThemeMode.amoled),
                       last: true,
+                    ),
+                  ],
+                ),
+              ),
+              const SectionTitle('Unità e valori'),
+              _Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.straighten, color: p.brand),
+                      title: const Text('Unità dei consumi'),
+                      subtitle: Text(s.consumptionUnit.label),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _pickConsumptionUnit(context),
+                    ),
+                    Divider(color: p.border, height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.schedule, color: p.brand),
+                      title: const Text('Valore del tempo'),
+                      subtitle: Text(
+                        s.hourlyValue <= 0
+                            ? 'Non impostato: usato per confrontare pedaggi e tempo'
+                            : '${s.hourlyValue.toStringAsFixed(0)} €/ora',
+                      ),
+                      trailing: const Icon(Icons.chevron_right),
+                      onTap: () => _pickHourlyValue(context),
+                    ),
+                    Divider(color: p.border, height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.group_outlined, color: p.brand),
+                      title: const Text('Occupanti'),
+                      subtitle: const Text('Per dividere le spese di viaggio'),
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            icon: const Icon(Icons.remove_circle_outline),
+                            onPressed: s.householdSize <= 1
+                                ? null
+                                : () => state.updateSettings(s.copyWith(householdSize: s.householdSize - 1)),
+                          ),
+                          Text('${s.householdSize}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                          IconButton(
+                            icon: const Icon(Icons.add_circle_outline),
+                            onPressed: s.householdSize >= 7
+                                ? null
+                                : () => state.updateSettings(s.copyWith(householdSize: s.householdSize + 1)),
+                          ),
+                        ],
+                      ),
                     ),
                   ],
                 ),
@@ -159,6 +214,64 @@ class SettingsScreen extends StatelessWidget {
                   ],
                 ),
               ),
+              const SectionTitle('Indirizzi salvati'),
+              _Card(
+                child: Column(
+                  children: [
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.home_outlined, color: p.brand),
+                      title: const Text('Casa'),
+                      subtitle: Text(s.homeAddress?.oneLine.isNotEmpty == true
+                          ? s.homeAddress!.oneLine
+                          : 'Non impostata'),
+                      trailing: s.homeAddress == null
+                          ? const Icon(Icons.chevron_right)
+                          : IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () => state.updateSettings(s.copyWith(clearHomeAddress: true)),
+                            ),
+                      onTap: () async {
+                        final address = await editAddress(
+                          context,
+                          state: state,
+                          title: 'Casa',
+                          initial: s.homeAddress,
+                        );
+                        if (address != null) {
+                          state.updateSettings(state.settings.copyWith(homeAddress: address));
+                        }
+                      },
+                    ),
+                    Divider(color: p.border, height: 1),
+                    ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: Icon(Icons.work_outline, color: p.brand),
+                      title: const Text('Lavoro'),
+                      subtitle: Text(s.workAddress?.oneLine.isNotEmpty == true
+                          ? s.workAddress!.oneLine
+                          : 'Non impostato'),
+                      trailing: s.workAddress == null
+                          ? const Icon(Icons.chevron_right)
+                          : IconButton(
+                              icon: const Icon(Icons.close, size: 18),
+                              onPressed: () => state.updateSettings(s.copyWith(clearWorkAddress: true)),
+                            ),
+                      onTap: () async {
+                        final address = await editAddress(
+                          context,
+                          state: state,
+                          title: 'Lavoro',
+                          initial: s.workAddress,
+                        );
+                        if (address != null) {
+                          state.updateSettings(state.settings.copyWith(workAddress: address));
+                        }
+                      },
+                    ),
+                  ],
+                ),
+              ),
               const SectionTitle('Dati'),
               _Card(
                 child: Column(
@@ -240,7 +353,7 @@ class SettingsScreen extends StatelessWidget {
               const SizedBox(height: 16),
               Center(
                 child: Text(
-                  'CentsGo 0.1.0 · dati MIMIT ${state.catalog.extractionDate}',
+                  'CentsGo 1.1.0 · dati MIMIT ${state.catalog.extractionDate}',
                   style: TextStyle(fontSize: 11.5, color: p.muted),
                 ),
               ),
@@ -249,6 +362,73 @@ class SettingsScreen extends StatelessWidget {
         },
       ),
     );
+  }
+
+  Future<void> _pickConsumptionUnit(BuildContext context) async {
+    final selected = await showAppSheet<ConsumptionUnit>(
+      context,
+      heightFactor: 0.4,
+      child: ListView(
+        shrinkWrap: true,
+        padding: const EdgeInsets.fromLTRB(20, 0, 20, 24),
+        children: [
+          const SheetTitle('Unità dei consumi', subtitle: 'Vale per tutta l\'app, salvo override del veicolo'),
+          for (final unit in ConsumptionUnit.values)
+            ListTile(
+              contentPadding: EdgeInsets.zero,
+              title: Text(unit.label),
+              subtitle: Text(unit == ConsumptionUnit.litersPer100km
+                  ? 'Es. 5,6 L/100 km'
+                  : 'Es. 17,9 km/L'),
+              trailing: state.settings.consumptionUnit == unit
+                  ? Icon(Icons.check_circle, color: context.palette.brand)
+                  : null,
+              onTap: () => Navigator.pop(context, unit),
+            ),
+        ],
+      ),
+    );
+    if (selected != null) {
+      state.updateSettings(state.settings.copyWith(consumptionUnit: selected));
+    }
+  }
+
+  Future<void> _pickHourlyValue(BuildContext context) async {
+    final controller = TextEditingController(
+      text: state.settings.hourlyValue <= 0 ? '' : state.settings.hourlyValue.toStringAsFixed(0),
+    );
+    final value = await showDialog<double>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Valore del tempo'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text(
+              'Quanto vale un\'ora del tuo tempo? Serve a capire se conviene pagare il pedaggio.',
+              style: TextStyle(fontSize: 13, height: 1.4),
+            ),
+            const SizedBox(height: 14),
+            TextField(
+              controller: controller,
+              autofocus: true,
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              decoration: const InputDecoration(labelText: '€ / ora', suffixText: '€'),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Annulla')),
+          FilledButton(
+            onPressed: () => Navigator.pop(ctx, double.tryParse(controller.text.replaceAll(',', '.')) ?? 0),
+            child: const Text('Salva'),
+          ),
+        ],
+      ),
+    );
+    if (value != null) {
+      state.updateSettings(state.settings.copyWith(hourlyValue: value.clamp(0, 500)));
+    }
   }
 
   Future<void> _pickFuel(BuildContext context) async {
@@ -308,7 +488,7 @@ class SettingsScreen extends StatelessWidget {
             children: [
               const SheetTitle('Raggio di ricerca'),
               Text('${value.round()} km',
-                  style: Money.style(context.palette, size: 32, color: context.palette.brand)),
+                  style: PriceType.style(context.palette, size: 32, color: context.palette.brand)),
               Slider(
                 value: value,
                 min: 1,

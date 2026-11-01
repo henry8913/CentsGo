@@ -294,7 +294,7 @@ class StatTile extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(value, style: Money.style(p, size: 21, color: p.ink)),
+                Text(value, style: PriceType.style(p, size: 21, color: p.ink)),
                 if (unit != null) ...[
                   const SizedBox(width: 3),
                   Text(unit!, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600, color: p.muted)),
@@ -467,6 +467,8 @@ Future<T?> showAppSheet<T>(
     context: context,
     isScrollControlled: true,
     useSafeArea: true,
+    // On desktop a full-width sheet would be unusable: keep it in a column.
+    constraints: const BoxConstraints(maxWidth: 640),
     backgroundColor: context.palette.surface,
     builder: (ctx) {
       final maxHeight = MediaQuery.of(ctx).size.height * (heightFactor ?? 0.9);
@@ -524,7 +526,7 @@ class PriceTag extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.baseline,
       textBaseline: TextBaseline.alphabetic,
       children: [
-        Text(price, style: Money.style(context.palette, size: size, color: color)),
+        Text(price, style: PriceType.style(context.palette, size: size, color: color)),
         if (unit != null)
           Padding(
             padding: const EdgeInsets.only(left: 2),

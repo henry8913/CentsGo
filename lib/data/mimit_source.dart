@@ -1,5 +1,6 @@
 import 'dart:convert';
-import 'dart:io';
+
+import '../core/net/api_client.dart';
 
 /// Downloads and normalises the official Italian fuel-price open data.
 ///
@@ -11,7 +12,9 @@ import 'dart:io';
 /// used by the bundled snapshot, so the rest of the app does not care where the
 /// data came from.
 class MimitSource {
-  MimitSource({HttpClient? client}) : _client = client ?? HttpClient();
+  MimitSource({ApiClient? client})
+      : _client = client ??
+            ApiClient(userAgent: 'CentsGo/1.0 (+https://github.com/henry8913/CentsGo)');
 
   static const anagraficaUrl =
       'https://www.mimit.gov.it/images/exportCSV/anagrafica_impianti_attivi.csv';
@@ -19,7 +22,7 @@ class MimitSource {
 
   static const fuels = ['Benzina', 'Gasolio', 'GPL', 'Metano', 'HVO'];
 
-  final HttpClient _client;
+  final ApiClient _client;
 
   /// Downloads the two CSV files. Kept separate so the caller can move the CSV
   /// parsing to a background isolate.
@@ -45,33 +48,18 @@ class MimitSource {
 
   /// Cheap check: reads the Last-Modified header without downloading the file.
   /// Returns null when the server does not expose it.
-  Future<DateTime?> remoteLastModified() async {
-    try {
-      final request = await _client.headUrl(Uri.parse(anagraficaUrl));
-      request.headers.set(HttpHeaders.userAgentHeader, 'CentsGo/1.0 (fuel prices client)');
-      request.followRedirects = true;
-      final response = await request.close().timeout(const Duration(seconds: 20));
-      if (response.statusCode != 200) return null;
-      final value = response.headers.value(HttpHeaders.lastModifiedHeader);
-      await response.drain<void>();
-      if (value == null) return null;
-      return HttpDate.parse(value).toLocal();
-    } catch (_) {
-      return null;
-    }
-  }
+  Future<DateTime?> remoteLastModified() =>
+      _client.lastModified(Uri.parse(anagraficaUrl));
 
   Future<String> _get(String url) async {
-    final request = await _client.getUrl(Uri.parse(url));
-    request.headers.set(HttpHeaders.userAgentHeader, 'CentsGo/1.0 (fuel prices client)');
-    request.followRedirects = true;
-    final response = await request.close().timeout(const Duration(seconds: 45));
-    if (response.statusCode != 200) {
-      throw HttpException('HTTP ${response.statusCode} per $url');
+    final response = await _client.get(
+      Uri.parse(url),
+      cacheTtl: const Duration(hours: 6),
+    );
+    if (!response.isValid) {
+      throw Exception('Il servizio MIMIT ha risposto ${response.statusCode}');
     }
-    final bytes = await response.fold<List<int>>(<int>[], (a, b) => a..addAll(b));
-    // The ministry files are mostly UTF-8 with rare Latin-1 leftovers.
-    return utf8.decode(bytes, allowMalformed: true);
+    return response.body;
   }
 
   /// Pure parser, exposed for tests and for the offline rebuild script.
